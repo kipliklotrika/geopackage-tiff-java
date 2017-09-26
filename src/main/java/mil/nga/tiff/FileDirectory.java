@@ -482,7 +482,17 @@ public class FileDirectory {
 	 * @return samples per pixel
 	 */
 	public Integer getSamplesPerPixel() {
-		return getIntegerEntryValue(FieldTagType.SamplesPerPixel);
+		Integer samplesPerPixel = getIntegerEntryValue(FieldTagType.SamplesPerPixel);
+		if (samplesPerPixel == null) {
+			// if SamplesPerPixel tag is missing, try using length of
+			// BitsPerSample list
+			List<Integer> bitsPerSampleList = getBitsPerSample();
+			if (bitsPerSampleList != null) {
+				samplesPerPixel = bitsPerSampleList.size();
+			}
+		}
+
+		return samplesPerPixel;
 	}
 
 	/**
@@ -1127,13 +1137,10 @@ public class FileDirectory {
 		int tileWidth = getTileWidth().intValue();
 		int tileHeight = getTileHeight().intValue();
 
-		int minXTile = (int) Math
-				.floor(window.getMinX() / ((double) tileWidth));
-		int maxXTile = (int) Math.ceil(window.getMaxX() / ((double) tileWidth));
-		int minYTile = (int) Math.floor(window.getMinY()
-				/ ((double) tileHeight));
-		int maxYTile = (int) Math
-				.ceil(window.getMaxY() / ((double) tileHeight));
+		int minXTile = window.getMinX() / tileWidth;
+		int maxXTile = (window.getMaxX() + tileWidth - 1) / tileWidth;
+		int minYTile = window.getMinY() / tileHeight;
+		int maxYTile = (window.getMaxY() + tileHeight - 1) / tileHeight;
 
 		int windowWidth = window.getMaxX() - window.getMinX();
 
@@ -1332,10 +1339,12 @@ public class FileDirectory {
 
 		byte[] tileOrStrip = null;
 
-		int numTilesPerRow = (int) Math.ceil(getImageWidth().doubleValue()
-				/ getTileWidth().doubleValue());
-		int numTilesPerCol = (int) Math.ceil(getImageHeight().doubleValue()
-				/ getTileHeight().doubleValue());
+		int imageWidth = getImageWidth().intValue();
+		int imageHeight = getImageHeight().intValue();
+		int tileWidth = getTileWidth().intValue();
+		int tileHeight = getTileHeight().intValue();
+		int numTilesPerRow = (imageWidth + tileWidth - 1) / tileWidth;
+		int numTilesPerCol = (imageHeight + tileHeight - 1) / tileHeight;
 
 		int index = 0;
 		if (planarConfiguration == TiffConstants.PLANAR_CONFIGURATION_CHUNKY) {
@@ -1434,7 +1443,7 @@ public class FileDirectory {
 	 *            field tag type
 	 * @return integer value
 	 */
-	private Integer getIntegerEntryValue(FieldTagType fieldTagType) {
+	public Integer getIntegerEntryValue(FieldTagType fieldTagType) {
 		return getEntryValue(fieldTagType);
 	}
 
@@ -1446,7 +1455,7 @@ public class FileDirectory {
 	 * @param value
 	 *            unsigned integer value (16 bit)
 	 */
-	private void setUnsignedIntegerEntryValue(FieldTagType fieldTagType,
+	public void setUnsignedIntegerEntryValue(FieldTagType fieldTagType,
 			int value) {
 		setEntryValue(fieldTagType, FieldType.SHORT, 1, value);
 	}
@@ -1458,7 +1467,7 @@ public class FileDirectory {
 	 *            field tag type
 	 * @return number value
 	 */
-	private Number getNumberEntryValue(FieldTagType fieldTagType) {
+	public Number getNumberEntryValue(FieldTagType fieldTagType) {
 		return getEntryValue(fieldTagType);
 	}
 
@@ -1470,8 +1479,38 @@ public class FileDirectory {
 	 * @param value
 	 *            unsigned long value (32 bit)
 	 */
-	private void setUnsignedLongEntryValue(FieldTagType fieldTagType, long value) {
+	public void setUnsignedLongEntryValue(FieldTagType fieldTagType, long value) {
 		setEntryValue(fieldTagType, FieldType.LONG, 1, value);
+	}
+
+	/**
+	 * Get a string entry value for the field tag type
+	 *
+	 * @param fieldTagType
+	 *            field tag type
+	 * @return string value
+	 */
+	public String getStringEntryValue(FieldTagType fieldTagType) {
+		String value = null;
+		List<String> values = getEntryValue(fieldTagType);
+		if (values != null && !values.isEmpty()) {
+			value = values.get(0);
+		}
+		return value;
+	}
+
+	/**
+	 * Set string value for the field tag type
+	 *
+	 * @param fieldTagType
+	 *            field tag type
+	 * @param value
+	 *            string value
+	 */
+	public void setStringEntryValue(FieldTagType fieldTagType, String value) {
+		List<String> values = new ArrayList<>();
+		values.add(value);
+		setEntryValue(fieldTagType, FieldType.ASCII, value.length() + 1, values);
 	}
 
 	/**
@@ -1481,7 +1520,7 @@ public class FileDirectory {
 	 *            field tag type
 	 * @return integer list value
 	 */
-	private List<Integer> getIntegerListEntryValue(FieldTagType fieldTagType) {
+	public List<Integer> getIntegerListEntryValue(FieldTagType fieldTagType) {
 		return getEntryValue(fieldTagType);
 	}
 
@@ -1491,7 +1530,7 @@ public class FileDirectory {
 	 * @param fieldTagType
 	 * @param value
 	 */
-	private void setUnsignedIntegerListEntryValue(FieldTagType fieldTagType,
+	public void setUnsignedIntegerListEntryValue(FieldTagType fieldTagType,
 			List<Integer> value) {
 		setEntryValue(fieldTagType, FieldType.SHORT, value.size(), value);
 	}
@@ -1503,11 +1542,11 @@ public class FileDirectory {
 	 *            field tag type
 	 * @return max integer value
 	 */
-	private Integer getMaxIntegerEntryValue(FieldTagType fieldTagType) {
+	public Integer getMaxIntegerEntryValue(FieldTagType fieldTagType) {
 		Integer maxValue = null;
 		List<Integer> values = getIntegerListEntryValue(fieldTagType);
 		if (values != null) {
-			maxValue = Collections.max(getSampleFormat());
+			maxValue = Collections.max(values);
 		}
 		return maxValue;
 	}
@@ -1519,7 +1558,7 @@ public class FileDirectory {
 	 *            field tag type
 	 * @return long list value
 	 */
-	private List<Number> getNumberListEntryValue(FieldTagType fieldTagType) {
+	public List<Number> getNumberListEntryValue(FieldTagType fieldTagType) {
 		return getEntryValue(fieldTagType);
 	}
 
@@ -1530,7 +1569,7 @@ public class FileDirectory {
 	 *            field tag type
 	 * @return long list value
 	 */
-	private List<Long> getLongListEntryValue(FieldTagType fieldTagType) {
+	public List<Long> getLongListEntryValue(FieldTagType fieldTagType) {
 		return getEntryValue(fieldTagType);
 	}
 
@@ -1540,7 +1579,7 @@ public class FileDirectory {
 	 * @param fieldTagType
 	 * @param value
 	 */
-	private void setUnsignedLongListEntryValue(FieldTagType fieldTagType,
+	public void setUnsignedLongListEntryValue(FieldTagType fieldTagType,
 			List<Long> value) {
 		setEntryValue(fieldTagType, FieldType.LONG, value.size(), value);
 	}
