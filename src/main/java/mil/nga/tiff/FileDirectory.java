@@ -1110,7 +1110,7 @@ public class FileDirectory {
 		}
 		ByteBuffer interleave = null;
 		if (interleaveValues) {
-			interleave = ByteBuffer.allocate(numPixels * bytesPerPixel);
+			interleave = ByteBuffer.allocateDirect(numPixels * bytesPerPixel);
 			interleave.order(reader.getByteOrder());
 		}
 
@@ -1119,19 +1119,19 @@ public class FileDirectory {
 		if (sampleValues) {
 			sample = new ByteBuffer[samplesPerPixel];
 			for (int i = 0; i < sample.length; ++i) {
-				sample[i] = ByteBuffer.allocate(numPixels * bitsPerSample.get(i) / 8);
+				sample[i] = ByteBuffer.allocateDirect(numPixels * bitsPerSample.get(i) / 8);
 				sample[i].order(reader.getByteOrder());
 			}
 		}
 
-		FieldType[] sampleFieldTypes = new FieldType[samples.length];
+		Rasters.SampleType[] sampleTypes = new Rasters.SampleType[samples.length];
 		for (int i = 0; i < samples.length; i++) {
-			sampleFieldTypes[i] = getFieldTypeForSample(samples[i]);
+			sampleTypes[i] = Rasters.FieldTypeToSampleType(getFieldTypeForSample(samples[i]));
 		}
 
 		// Create the rasters results
 		Rasters rasters = new Rasters(windowWidth, windowHeight,
-				samplesPerPixel, bitsPerSample, sampleFieldTypes, sample, interleave);
+										sampleTypes, sample, interleave);
 
 		// Read the rasters
 		readRaster(window, samples, rasters);
