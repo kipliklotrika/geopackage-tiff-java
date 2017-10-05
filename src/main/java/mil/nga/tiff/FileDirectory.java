@@ -1126,7 +1126,7 @@ public class FileDirectory {
 
 		Rasters.SampleType[] sampleTypes = new Rasters.SampleType[samples.length];
 		for (int i = 0; i < samples.length; i++) {
-			sampleTypes[i] = Rasters.FieldTypeToSampleType(getFieldTypeForSample(samples[i]));
+			sampleTypes[i] = getFieldTypeForSample(samples[i]);
 		}
 
 		// Create the rasters results
@@ -1164,7 +1164,7 @@ public class FileDirectory {
 		int bytesPerPixel = getBytesPerPixel();
 
 		int[] srcSampleOffsets = new int[samples.length];
-		FieldType[] sampleFieldTypes = new FieldType[samples.length];
+		Rasters.SampleType[] sampleFieldTypes = new Rasters.SampleType[samples.length];
 		for (int i = 0; i < samples.length; i++) {
 			int sampleOffset = 0;
 			if (planarConfiguration == TiffConstants.PLANAR_CONFIGURATION_CHUNKY) {
@@ -1236,19 +1236,19 @@ public class FileDirectory {
 	}
 
 	/**
-	 * Read the value from the reader according to the field type
+	 * Read the value from the reader according to the sample type
 	 * 
 	 * @param reader
 	 *            byte reader
-	 * @param fieldType
-	 *            field type
+	 * @param sampleType
+	 *            raster sample type
 	 * @return value
 	 */
-	private Number readValue(ByteReader reader, FieldType fieldType) {
+	private Number readValue(ByteReader reader, Rasters.SampleType sampleType) {
 
 		Number value = null;
 
-		switch (fieldType) {
+		switch (sampleType) {
 		case BYTE:
 			value = reader.readUnsignedByte();
 			break;
@@ -1258,13 +1258,13 @@ public class FileDirectory {
 		case LONG:
 			value = reader.readUnsignedInt();
 			break;
-		case SBYTE:
+		case SIGNED_BYTE:
 			value = reader.readByte();
 			break;
-		case SSHORT:
+		case SIGNED_SHORT:
 			value = reader.readShort();
 			break;
-		case SLONG:
+		case SIGNED_LONG:
 			value = reader.readInt();
 			break;
 		case FLOAT:
@@ -1274,23 +1274,23 @@ public class FileDirectory {
 			value = reader.readDouble();
 			break;
 		default:
-			throw new TiffException("Unsupported raster field type: "
-					+ fieldType);
+			throw new TiffException("Unsupported raster sampleType type: "
+					+ sampleType);
 		}
 
 		return value;
 	}
 
 	/**
-	 * Get the field type for the sample
-	 * 
+	 * Get the raster sample type for the sample @see Rasters.SampleType
+	 *
 	 * @param sampleIndex
 	 *            sample index
-	 * @return field type
+	 * @return Sample type
 	 */
-	public FieldType getFieldTypeForSample(int sampleIndex) {
+	public Rasters.SampleType getFieldTypeForSample(int sampleIndex) {
 
-		FieldType fieldType = null;
+		Rasters.SampleType sampleType = null;
 
 		List<Integer> sampleFormat = getSampleFormat();
 		int format = sampleFormat != null && sampleIndex < sampleFormat.size() ? sampleFormat
@@ -1300,42 +1300,46 @@ public class FileDirectory {
 		case TiffConstants.SAMPLE_FORMAT_UNSIGNED_INT:
 			switch (bitsPerSample) {
 			case 8:
-				fieldType = FieldType.BYTE;
+				sampleType = Rasters.SampleType.BYTE;
 				break;
 			case 16:
-				fieldType = FieldType.SHORT;
+				sampleType = Rasters.SampleType.SHORT;
 				break;
 			case 32:
-				fieldType = FieldType.LONG;
+				sampleType = Rasters.SampleType.LONG;
 				break;
 			}
 			break;
 		case TiffConstants.SAMPLE_FORMAT_SIGNED_INT:
 			switch (bitsPerSample) {
 			case 8:
-				fieldType = FieldType.SBYTE;
+				sampleType = Rasters.SampleType.SIGNED_BYTE;
 				break;
 			case 16:
-				fieldType = FieldType.SSHORT;
+				sampleType = Rasters.SampleType.SIGNED_SHORT;
 				break;
 			case 32:
-				fieldType = FieldType.SLONG;
+				sampleType = Rasters.SampleType.SIGNED_LONG;
 				break;
 			}
 			break;
 		case TiffConstants.SAMPLE_FORMAT_FLOAT:
 			switch (bitsPerSample) {
 			case 32:
-				fieldType = FieldType.FLOAT;
+				sampleType = Rasters.SampleType.FLOAT;
 				break;
 			case 64:
-				fieldType = FieldType.DOUBLE;
+				sampleType = Rasters.SampleType.DOUBLE;
 				break;
 			}
 			break;
 		}
 
-		return fieldType;
+		if (sampleType == null)
+			throw new TiffException("Unsupported sample type for format: " + format +
+									", and bits per sample: " + bitsPerSample);
+
+		return sampleType;
 	}
 
 	/**
