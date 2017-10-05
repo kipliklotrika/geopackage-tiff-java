@@ -3,6 +3,7 @@ package mil.nga.tiff;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import mil.nga.tiff.util.TiffConstants;
@@ -18,20 +19,24 @@ public class Rasters {
 	 * Sample type for pixel
 	 */
 	public enum SampleType {
-		BYTE(1),			// 8 bits
-		SIGNED_BYTE(1),		// 8 bits
-		SHORT(2),			// 16 bits
-		SIGNED_SHORT(2),	// 16 bits
-		LONG(4),			// 32 bits
-		SIGNED_LONG(4),		// 32 bits
-		FLOAT(4),			// 32 bits
-		DOUBLE(8);			// 64 bits
+		BYTE(1, TiffConstants.SAMPLE_FORMAT_UNSIGNED_INT),		// 8 bits
+		SIGNED_BYTE(1, TiffConstants.SAMPLE_FORMAT_SIGNED_INT),	// 8 bits
+		SHORT(2, TiffConstants.SAMPLE_FORMAT_UNSIGNED_INT),		// 16 bits
+		SIGNED_SHORT(2, TiffConstants.SAMPLE_FORMAT_SIGNED_INT),// 16 bits
+		LONG(4, TiffConstants.SAMPLE_FORMAT_UNSIGNED_INT),		// 32 bits
+		SIGNED_LONG(4, TiffConstants.SAMPLE_FORMAT_SIGNED_INT),	// 32 bits
+		FLOAT(4, TiffConstants.SAMPLE_FORMAT_FLOAT)	,			// 32 bits
+		DOUBLE(8, TiffConstants.SAMPLE_FORMAT_FLOAT);			// 64 bits
 
-		SampleType(int byteSize) { this.byteSize = byteSize; }
+		SampleType(int byteSize, int sampleFormat) {
+			this.byteSize = byteSize;
+			this.sampleFormat = sampleFormat;
+		}
 
 		int bitSize() { return  byteSize * 8; }
 
 		final int byteSize;
+		final int sampleFormat;
 	}
 
 	/**
@@ -58,6 +63,23 @@ public class Rasters {
 	 * Sample type for each sample.
 	 */
 	private final SampleType[] sampleTypes;
+
+	// Calculated values
+
+	/**
+	 * Calculated pixel size in bytes
+	 */
+	private Integer pixelSize;
+
+	/**
+	 * @see getBitsPerSample()
+	 */
+	private List<Integer> bitsPerSample;
+
+	/**
+	 * @see getSampleFormat()
+	 */
+	private List<Integer> sampleFormat;
 
 	/**
 	 * Constructor
@@ -113,6 +135,11 @@ public class Rasters {
 		this.sampleValues = sampleValues;
 		this.interleaveValues = interleaveValues;
 		validateValues();
+	}
+
+	public Rasters(int width, int height, int samplesPerPixel, SampleType sampleType) {
+		this(width, height, new SampleType[samplesPerPixel], new ByteBuffer[samplesPerPixel], null);
+		Arrays.fill(this.sampleTypes, sampleType);
 	}
 
 	/**
@@ -271,10 +298,36 @@ public class Rasters {
 	 * @return bits per sample
 	 */
 	public List<Integer> getBitsPerSample() {
-		List<Integer> result = new ArrayList<>(sampleTypes.length);
-		for (int sample = 0; sample < sampleTypes.length; ++sample) {
-			result.add(sampleTypes[sample].bitSize());
+		if (bitsPerSample != null) {
+			return bitsPerSample;
 		}
+
+		List<Integer> result = new ArrayList<>(sampleTypes.length);
+		for (SampleType sampleType : sampleTypes) {
+			result.add(sampleType.bitSize());
+		}
+		bitsPerSample = result;
+		return result;
+	}
+
+	/**
+	 * Returns list of sample types constants
+	 *
+	 * Returns list of sample types constants (SAMPLE_FORMAT_UNSIGNED_INT,
+	 * SAMPLE_FORMAT_SIGNED_INT or SAMPLE_FORMAT_FLOAT) for each sample in
+	 * sample list @see getSampleTypes(). @see {@link TiffConstants}
+	 * @return list of sample type constants
+	 */
+	public List<Integer> getSampleFormat() {
+		if (sampleFormat != null) {
+			return sampleFormat;
+		}
+
+		List<Integer> result = new ArrayList<>(sampleTypes.length);
+		for (SampleType sampleType : sampleTypes) {
+			result.add(sampleType.sampleFormat);
+		}
+		sampleFormat = result;
 		return result;
 	}
 
@@ -298,6 +351,9 @@ public class Rasters {
 	 */
 	public void setSampleValues(ByteBuffer[] sampleValues) {
 		this.sampleValues = sampleValues;
+		this.sampleFormat = null;
+		this.bitsPerSample = null;
+		this.pixelSize = null;
 		validateValues();
 	}
 
@@ -586,10 +642,15 @@ public class Rasters {
 	 * @return bytes
 	 */
 	public int sizePixel() {
+		if (pixelSize != null) {
+			return pixelSize;
+		}
+
 		int size = 0;
 		for (int i = 0; i < getSamplesPerPixel(); i++) {
 			size += sampleTypes[i].byteSize;
 		}
+		pixelSize = size;
 		return size;
 	}
 
@@ -648,7 +709,7 @@ public class Rasters {
 		Integer rowsPerStrip = null;
 
 		if (planarConfiguration == TiffConstants.PLANAR_CONFIGURATION_CHUNKY) {
-			rowsPerStrip = rowsPerStrip(bytesPerPixel(), maxBytesPerStrip);
+			rowsPerStrip = rowsPerStrip(sizePixel(), maxBytesPerStrip);
 		} else {
 
 			for (int sample = 0; sample < getSamplesPerPixel(); ++sample) {
@@ -682,26 +743,6 @@ public class Rasters {
 
 		return rowsPerStrip;
 	}
-
-	/**
-	 * Make a bits per sample list where each samples of a pixel has the same
-	 * value
-	 * 
-	 * @param samplesPerPixel
-	 *            samples per pixel
-	 * @param bitsPerSample
-	 *            bits per sample for all samples of a pixel
-	 * @return bits per sample list
-	 */
-	public static List<Integer> makeBitsPerSampleList(int samplesPerPixel,
-			int bitsPerSample) {
-		List<Integer> bitsPerSampleList = new ArrayList<Integer>();
-		for (int i = 0; i < samplesPerPixel; ++i) {
-			bitsPerSampleList.add(bitsPerSample);
-		}
-		return bitsPerSampleList;
-	}
-
 
 	/**
 	 * Reads sample from given buffer
@@ -809,19 +850,6 @@ public class Rasters {
 			default:
 				throw new TiffException("Unsupported raster sample type: " + sampleType);
 		}
-	}
-
-	/**
-	 * Returns size of bytes required for one pixel.
-	 */
-	public int bytesPerPixel() {
-		int result = 0;
-
-		for (int sample = 0; sample < getSamplesPerPixel(); ++sample) {
-			result += sampleTypes[sample].byteSize;
-		}
-
-		return result;
 	}
 
 	/**
