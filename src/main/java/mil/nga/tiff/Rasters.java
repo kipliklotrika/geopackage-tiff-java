@@ -137,9 +137,19 @@ public class Rasters {
 		validateValues();
 	}
 
+	/**
+	 *  Constructor
+	 *
+	 *  Creates Rasters object where given sample type used for each sample.
+	 *
+	 * @param width width of pixels
+	 * @param height height of pixels
+	 * @param samplesPerPixel number of samples per pixel
+	 * @param sampleType type of sample for each sample
+	 */
 	public Rasters(int width, int height, int samplesPerPixel, SampleType sampleType) {
-		this(width, height, new SampleType[samplesPerPixel], new ByteBuffer[samplesPerPixel], null);
-		Arrays.fill(this.sampleTypes, sampleType);
+		this(width, height, createSampleTypeArray(samplesPerPixel, sampleType),
+				ByteOrder.nativeOrder());
 	}
 
 	/**
@@ -150,6 +160,16 @@ public class Rasters {
 			throw new TiffException(
 					"Results must be sample and/or interleave based");
 		}
+	}
+
+	/**
+	 * Helper method used to create {@link SampleType} array of given size and
+	 * filled with given values.
+	 */
+	private static SampleType[] createSampleTypeArray(int size, SampleType sampleType) {
+		SampleType[] result = new SampleType[size];
+		Arrays.fill(result, sampleType);
+		return result;
 	}
 
 	/**

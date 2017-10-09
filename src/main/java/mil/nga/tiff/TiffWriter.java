@@ -3,7 +3,6 @@ package mil.nga.tiff;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -316,7 +315,7 @@ public class TiffWriter {
 				.getSamplesPerPixel()];
 		for (int sample = 0; sample < rasters.getSamplesPerPixel(); sample++) {
 			sampleTypes[sample] = fileDirectory
-					.getFieldTypeForSample(sample);
+					.getTypeForSample(sample);
 		}
 
 		// Get the compression encoder

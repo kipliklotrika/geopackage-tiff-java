@@ -1126,7 +1126,7 @@ public class FileDirectory {
 
 		Rasters.SampleType[] sampleTypes = new Rasters.SampleType[samples.length];
 		for (int i = 0; i < samples.length; i++) {
-			sampleTypes[i] = getFieldTypeForSample(samples[i]);
+			sampleTypes[i] = getTypeForSample(samples[i]);
 		}
 
 		// Create the rasters results
@@ -1171,7 +1171,7 @@ public class FileDirectory {
 				sampleOffset = sum(getBitsPerSample(), 0, samples[i]) / 8;
 			}
 			srcSampleOffsets[i] = sampleOffset;
-			sampleFieldTypes[i] = getFieldTypeForSample(samples[i]);
+			sampleFieldTypes[i] = getTypeForSample(samples[i]);
 		}
 
 		for (int yTile = minYTile; yTile < maxYTile; yTile++) {
@@ -1288,7 +1288,7 @@ public class FileDirectory {
 	 *            sample index
 	 * @return Sample type
 	 */
-	public Rasters.SampleType getFieldTypeForSample(int sampleIndex) {
+	public Rasters.SampleType getTypeForSample(int sampleIndex) {
 
 		Rasters.SampleType sampleType = null;
 
