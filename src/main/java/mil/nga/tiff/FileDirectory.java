@@ -1292,9 +1292,9 @@ public class FileDirectory {
 
 		Rasters.SampleType sampleType = null;
 
-		List<Integer> sampleFormat = getSampleFormat();
-		int format = sampleFormat != null && sampleIndex < sampleFormat.size() ? sampleFormat
-				.get(sampleIndex) : TiffConstants.SAMPLE_FORMAT_UNSIGNED_INT;
+		List<Integer> sampleFormatList = getSampleFormat();
+		int format = sampleFormatList == null ? TiffConstants.SAMPLE_FORMAT_UNSIGNED_INT
+				: sampleFormatList.get(sampleIndex < sampleFormatList.size() ? sampleIndex : 0);
 		int bitsPerSample = getBitsPerSample().get(sampleIndex);
 		switch (format) {
 		case TiffConstants.SAMPLE_FORMAT_UNSIGNED_INT:
