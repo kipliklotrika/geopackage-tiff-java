@@ -1,5 +1,6 @@
 package mil.nga.tiff;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -480,18 +481,15 @@ public class FileDirectory {
 	 * Get the samples per pixel
 	 * 
 	 * @return samples per pixel
+	 * @since 2.0.0
 	 */
-	public Integer getSamplesPerPixel() {
+	public int getSamplesPerPixel() {
 		Integer samplesPerPixel = getIntegerEntryValue(FieldTagType.SamplesPerPixel);
 		if (samplesPerPixel == null) {
-			// if SamplesPerPixel tag is missing, try using length of
-			// BitsPerSample list
-			List<Integer> bitsPerSampleList = getBitsPerSample();
-			if (bitsPerSampleList != null) {
-				samplesPerPixel = bitsPerSampleList.size();
-			}
+			// if SamplesPerPixel tag is missing, use default value defined by
+			// TIFF standard
+			samplesPerPixel = 1;
 		}
-
 		return samplesPerPixel;
 	}
 
@@ -1100,21 +1098,37 @@ public class FileDirectory {
 			}
 		}
 
-		// Create the interleaved result array
-		Number[] interleave = null;
+		// Create the interleaved result buffer
+		List<Integer> bitsPerSample = getBitsPerSample();
+		int bytesPerPixel = 0;
+		for (int i = 0; i < samplesPerPixel; ++i) {
+			bytesPerPixel += bitsPerSample.get(i) / 8;
+		}
+		ByteBuffer interleave = null;
 		if (interleaveValues) {
-			interleave = new Number[numPixels * samples.length];
+			interleave = ByteBuffer.allocateDirect(numPixels * bytesPerPixel);
+			interleave.order(reader.getByteOrder());
 		}
 
-		// Create the sample indexed result double array
-		Number[][] sample = null;
+		// Create the sample indexed result buffer array
+		ByteBuffer[] sample = null;
 		if (sampleValues) {
-			sample = new Number[samples.length][numPixels];
+			sample = new ByteBuffer[samplesPerPixel];
+			for (int i = 0; i < sample.length; ++i) {
+				sample[i] = ByteBuffer.allocateDirect(numPixels
+						* bitsPerSample.get(i) / 8);
+				sample[i].order(reader.getByteOrder());
+			}
+		}
+
+		FieldType[] fieldTypes = new FieldType[samples.length];
+		for (int i = 0; i < samples.length; i++) {
+			fieldTypes[i] = getFieldTypeForSample(samples[i]);
 		}
 
 		// Create the rasters results
-		Rasters rasters = new Rasters(windowWidth, windowHeight,
-				samplesPerPixel, getBitsPerSample(), sample, interleave);
+		Rasters rasters = new Rasters(windowWidth, windowHeight, fieldTypes,
+				sample, interleave);
 
 		// Read the rasters
 		readRaster(window, samples, rasters);
@@ -1198,10 +1212,9 @@ public class FileDirectory {
 								int windowCoordinate = (y + firstLine - window
 										.getMinY())
 										* windowWidth
-										* samples.length
-										+ (x + firstCol - window.getMinX())
-										* samples.length + sampleIndex;
-								rasters.addToInterleave(windowCoordinate, value);
+										+ (x + firstCol - window.getMinX());
+								rasters.addToInterleave(sampleIndex,
+										windowCoordinate, value);
 							}
 
 							if (rasters.hasSampleValues()) {
@@ -1269,57 +1282,22 @@ public class FileDirectory {
 
 	/**
 	 * Get the field type for the sample
-	 * 
+	 *
 	 * @param sampleIndex
 	 *            sample index
 	 * @return field type
 	 */
 	public FieldType getFieldTypeForSample(int sampleIndex) {
 
-		FieldType fieldType = null;
-
-		List<Integer> sampleFormat = getSampleFormat();
-		int format = sampleFormat != null && sampleIndex < sampleFormat.size() ? sampleFormat
-				.get(sampleIndex) : TiffConstants.SAMPLE_FORMAT_UNSIGNED_INT;
+		List<Integer> sampleFormatList = getSampleFormat();
+		int sampleFormat = sampleFormatList == null ? TiffConstants.SAMPLE_FORMAT_UNSIGNED_INT
+				: sampleFormatList
+						.get(sampleIndex < sampleFormatList.size() ? sampleIndex
+								: 0);
 		int bitsPerSample = getBitsPerSample().get(sampleIndex);
-		switch (format) {
-		case TiffConstants.SAMPLE_FORMAT_UNSIGNED_INT:
-			switch (bitsPerSample) {
-			case 8:
-				fieldType = FieldType.BYTE;
-				break;
-			case 16:
-				fieldType = FieldType.SHORT;
-				break;
-			case 32:
-				fieldType = FieldType.LONG;
-				break;
-			}
-			break;
-		case TiffConstants.SAMPLE_FORMAT_SIGNED_INT:
-			switch (bitsPerSample) {
-			case 8:
-				fieldType = FieldType.SBYTE;
-				break;
-			case 16:
-				fieldType = FieldType.SSHORT;
-				break;
-			case 32:
-				fieldType = FieldType.SLONG;
-				break;
-			}
-			break;
-		case TiffConstants.SAMPLE_FORMAT_FLOAT:
-			switch (bitsPerSample) {
-			case 32:
-				fieldType = FieldType.FLOAT;
-				break;
-			case 64:
-				fieldType = FieldType.DOUBLE;
-				break;
-			}
-			break;
-		}
+
+		FieldType fieldType = FieldType.getFieldType(sampleFormat,
+				bitsPerSample);
 
 		return fieldType;
 	}
@@ -1442,6 +1420,7 @@ public class FileDirectory {
 	 * @param fieldTagType
 	 *            field tag type
 	 * @return integer value
+	 * @since 2.0.0
 	 */
 	public Integer getIntegerEntryValue(FieldTagType fieldTagType) {
 		return getEntryValue(fieldTagType);
@@ -1454,6 +1433,7 @@ public class FileDirectory {
 	 *            field tag type
 	 * @param value
 	 *            unsigned integer value (16 bit)
+	 * @since 2.0.0
 	 */
 	public void setUnsignedIntegerEntryValue(FieldTagType fieldTagType,
 			int value) {
@@ -1466,6 +1446,7 @@ public class FileDirectory {
 	 * @param fieldTagType
 	 *            field tag type
 	 * @return number value
+	 * @since 2.0.0
 	 */
 	public Number getNumberEntryValue(FieldTagType fieldTagType) {
 		return getEntryValue(fieldTagType);
@@ -1478,6 +1459,7 @@ public class FileDirectory {
 	 *            field tag type
 	 * @param value
 	 *            unsigned long value (32 bit)
+	 * @since 2.0.0
 	 */
 	public void setUnsignedLongEntryValue(FieldTagType fieldTagType, long value) {
 		setEntryValue(fieldTagType, FieldType.LONG, 1, value);
@@ -1489,6 +1471,7 @@ public class FileDirectory {
 	 * @param fieldTagType
 	 *            field tag type
 	 * @return string value
+	 * @since 2.0.0
 	 */
 	public String getStringEntryValue(FieldTagType fieldTagType) {
 		String value = null;
@@ -1506,6 +1489,7 @@ public class FileDirectory {
 	 *            field tag type
 	 * @param value
 	 *            string value
+	 * @since 2.0.0
 	 */
 	public void setStringEntryValue(FieldTagType fieldTagType, String value) {
 		List<String> values = new ArrayList<>();
@@ -1519,6 +1503,7 @@ public class FileDirectory {
 	 * @param fieldTagType
 	 *            field tag type
 	 * @return integer list value
+	 * @since 2.0.0
 	 */
 	public List<Integer> getIntegerListEntryValue(FieldTagType fieldTagType) {
 		return getEntryValue(fieldTagType);
@@ -1528,7 +1513,10 @@ public class FileDirectory {
 	 * Set an unsigned integer list of values for the field tag type
 	 * 
 	 * @param fieldTagType
+	 *            field tag type
 	 * @param value
+	 *            integer list value
+	 * @since 2.0.0
 	 */
 	public void setUnsignedIntegerListEntryValue(FieldTagType fieldTagType,
 			List<Integer> value) {
@@ -1541,6 +1529,7 @@ public class FileDirectory {
 	 * @param fieldTagType
 	 *            field tag type
 	 * @return max integer value
+	 * @since 2.0.0
 	 */
 	public Integer getMaxIntegerEntryValue(FieldTagType fieldTagType) {
 		Integer maxValue = null;
@@ -1557,6 +1546,7 @@ public class FileDirectory {
 	 * @param fieldTagType
 	 *            field tag type
 	 * @return long list value
+	 * @since 2.0.0
 	 */
 	public List<Number> getNumberListEntryValue(FieldTagType fieldTagType) {
 		return getEntryValue(fieldTagType);
@@ -1568,6 +1558,7 @@ public class FileDirectory {
 	 * @param fieldTagType
 	 *            field tag type
 	 * @return long list value
+	 * @since 2.0.0
 	 */
 	public List<Long> getLongListEntryValue(FieldTagType fieldTagType) {
 		return getEntryValue(fieldTagType);
@@ -1577,7 +1568,10 @@ public class FileDirectory {
 	 * Set an unsigned long list of values for the field tag type
 	 * 
 	 * @param fieldTagType
+	 *            field tag type
 	 * @param value
+	 *            long list value
+	 * @since 2.0.0
 	 */
 	public void setUnsignedLongListEntryValue(FieldTagType fieldTagType,
 			List<Long> value) {
